@@ -19,7 +19,7 @@ def load_data(file, columns):
     return pd.DataFrame(columns=columns)
 
 df = load_data(DB_FILE, ["Tarik", "Naw", "Status", "Pagar_Type", "Pagar", "Advance"])
-df_exp = load_data(EXP_FILE, ["Tarik", "Gadi_No", "Kothe", "Kharch_Type", "Amt", "Detail"])
+df_exp = load_data(EXP_FILE, ["Tarik", "MH24AB7551", "Kothe", "Kharch_Type", "Amt", "Detail"])
 
 st.set_page_config(page_title="S K Group Manager", layout="wide")
 st.title("🏗️ S K Group & Company - Business Manager")
