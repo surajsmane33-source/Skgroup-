@@ -6,7 +6,7 @@ import os  # ही ओळ असणे खूप गरजेचे आहे
 # फाईल सेटअप
 DB_FILE = "sk_group_payroll.xlsx"
 # तुमच्या ४ कामगारांची खरी नावे येथे लिहा
-WORKERS = ["कामगार १", "कामगार २", "कामगार ३", "कामगार ४"]
+WORKERS = ["KHANDU HAJARE", "OM JADHAV", "SURAJ SHINDE, "ABHISHEK PATOLE"]
 
 # डेटाबेस लोड करणे किंवा नवीन बनवणे
 if os.path.exists(DB_FILE):
