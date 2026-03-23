@@ -1,16 +1,16 @@
+
+
 import streamlit as st
 import pandas as pd
 from datetime import date
 import os
-import plotly.express as px
+import io
 
 # File Setup
 DB_FILE = "sk_payroll.xlsx"
 EXP_FILE = "sk_expenses.xlsx"
-
-# Tumchi mahiti
-WORKERS = ["KHANDU HAJARE", "OM JADHAV", "SURAJ SHINDE", "ABHISHEK PATOLE"]
-VEHICLES = ["Gadi No 1", "Gadi No 2", "Gadi No 3", "Other"] # Tumchi gadi numbers yethal lihaha
+VEHICLE_INCOME_FILE = "sk_vehicle_income.xlsx"
+CONFIG_FILE = "sk_config.xlsx"
 
 def load_data(file, columns):
     if os.path.exists(file):
@@ -18,94 +18,83 @@ def load_data(file, columns):
         except: return pd.DataFrame(columns=columns)
     return pd.DataFrame(columns=columns)
 
-df = load_data(DB_FILE, ["Tarik", "Naw", "Status", "Pagar_Type", "Pagar", "Advance"])
-df_exp = load_data(EXP_FILE, ["Tarik", "MH24AB7551", "Kothe", "Kharch_Type", "Amt", "Detail"])
+config_df = load_data(CONFIG_FILE, ["Type", "Name"])
+WORKERS = config_df[config_df["Type"] == "Worker"]["Name"].tolist()
+VEHICLES = config_df[config_df["Type"] == "Vehicle"]["Name"].tolist()
 
-st.set_page_config(page_title="S K Group Manager", layout="wide")
-st.title("🏗️ S K Group & Company - Business Manager")
+df = load_data(DB_FILE, ["Tarik", "Naw", "Status", "Pagar", "Advance"])
+df_exp = load_data(EXP_FILE, ["Tarik", "Gadi_No", "Kothe", "Amt"])
+df_inc = load_data(VEHICLE_INCOME_FILE, ["Tarik", "Gadi_No", "Point_Naw", "Trips", "Amt"])
 
-menu = st.sidebar.selectbox("Menu", ["🚩 Absent Nondva", "🚛 Gadi Kharch", "📊 Report & Delete"])
+st.set_page_config(page_title="S K Group - Pro Manager", layout="wide")
 
-# --- 1. Absent Nondva ---
-if menu == "🚩 Absent Nondva":
-    st.subheader("🚩 Kamgar Absent Nond (Baaki divas Present dharle jaatil)")
-    with st.form("absent_form"):
-        a_date = st.date_input("Tarik", date.today())
-        absent_worker = st.selectbox("Absent aslelya kamgarache naw", WORKERS)
-        p_type = st.radio("Pagar Type", ["Daily", "Monthly"])
-        st.info("Tip: Fakt Absent asel tarach yethal nond kara. Nond kelyas tya divasacha pagar 0 dharla jaail.")
+menu = st.sidebar.selectbox("Main Menu", ["📊 Dashboard", "👷 Kamgar Hisob", "🚛 Gadi & Trip Report", "⚙️ Add Gadi/Worker"])
 
-        if st.form_submit_button("Absent Nondva"):
-            new_row = {"Tarik": str(a_date), "Naw": absent_worker, "Status": "Absent", "Pagar_Type": p_type, "Pagar": 0, "Advance": 0}
-            df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-            df.to_excel(DB_FILE, index=False)
-            st.error(f"{absent_worker} yanchi {a_date} chi Absent nondavli geli.")
+# --- 1. Dashboard ---
+if menu == "📊 Dashboard":
+    st.title("🏗️ S K Group & Company")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Total Income", f"₹{df_inc['Amt'].sum()}")
+    c2.metric("Total Expense", f"₹{df_exp['Amt'].sum()}")
+    c3.metric("Net Profit", f"₹{df_inc['Amt'].sum() - df_exp['Amt'].sum()}")
+
+# --- 2. Kamgar Hisob (Separate) ---
+elif menu == "👷 Kamgar Hisob":
+    sel_w = st.selectbox("Kamgar Nivda", WORKERS)
+    w_data = df[df["Naw"] == sel_w]
+    
+    st.subheader(f"👤 {sel_w} yancha Report")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Ekun Advance (Uchal)", f"₹{w_data['Advance'].sum()}")
+    with col2:
+        st.metric("Ekun Absent", len(w_data[w_data['Status'] == 'Absent']))
+    
+    st.dataframe(w_data, use_container_width=True)
+    
+    # Share Logic
+    share_text = f"S K Group Report\nKamgar: {sel_w}\nAdvance: {w_data['Advance'].sum()}\nAbsent: {len(w_data[w_data['Status'] == 'Absent'])}"
+    st.text_area("Share karanyasathi copy kara:", share_text)
+
+# --- 3. Gadi & Trip Report (Separate) ---
+elif menu == "🚛 Gadi & Trip Report":
+    sel_v = st.selectbox("Gadi Nivda", VEHICLES)
+    v_inc = df_inc[df_inc['Gadi_No'] == sel_v]
+    v_exp = df_exp[df_exp['Gadi_No'] == sel_v]
+    
+    st.subheader(f"🚛 {sel_v} Trip Hisob")
+    
+    # Trip Detail Table
+    st.write("### Trip Details (Point-wise)")
+    st.dataframe(v_inc, use_container_width=True)
+    
+    # Calculation
+    total_trips = v_inc['Trips'].sum()
+    total_income = v_inc['Amt'].sum()
+    total_kharch = v_exp['Amt'].sum()
+    profit = total_income - total_kharch
+    
+    c_v1, c_v2, c_v3 = st.columns(3)
+    c_v1.metric("Total Trips", total_trips)
+    c_v2.metric("Total Income", f"₹{total_income}")
+    c_v3.metric("Profit", f"₹{profit}")
+
+    # Share Feature
+    v_share = f"Gadi Report: {sel_v}\nTotal Trips: {total_trips}\nIncome: {total_income}\nExpense: {total_kharch}\nProfit: {profit}"
+    st.text_area("WhatsApp var share karanyasathi copy kara:", v_share)
+
+# --- 4. Settings ---
+elif menu == "⚙️ Add Gadi/Worker":
+    st.subheader("Navin Gadi/Kamgar Add kara")
+    col_a, col_b = st.columns(2)
+    with col_a:
+        new_v = st.text_input("Gadi Number")
+        if st.button("Save Gadi"):
+            pd.concat([config_df, pd.DataFrame([{"Type":"Vehicle","Name":new_v}])]).to_excel(CONFIG_FILE, index=False)
             st.rerun()
-
-    # Advance nondvanyasathi vegla section
-    st.divider()
-    st.subheader("💸 Advance (Uchal) Dene")
-    with st.form("adv_form"):
-        adv_worker = st.selectbox("Kamgar निवडा", WORKERS)
-        adv_amt = st.number_input("Advance Rakkam (₹)", min_value=0)
-        if st.form_submit_button("Advance Jatan Kara"):
-            new_adv = {"Tarik": str(date.today()), "Naw": adv_worker, "Status": "Present", "Pagar_Type": "N/A", "Pagar": 0, "Advance": adv_amt}
-            df = pd.concat([df, pd.DataFrame([new_adv])], ignore_index=True)
-            df.to_excel(DB_FILE, index=False)
-            st.success("Advance chi nond jhali!")
+    with col_b:
+        new_w = st.text_input("Kamgar Name")
+        if st.button("Save Worker"):
+            pd.concat([config_df, pd.DataFrame([{"Type":"Worker","Name":new_w}])]).to_excel(CONFIG_FILE, index=False)
             st.rerun()
-
-# --- 2. Gadi Kharch ---
-elif menu == "🚛 Gadi Kharch":
-    st.subheader("🚛 Gadi-wise Kharch (Diesel/Maintenance)")
-    with st.form("v_exp"):
-        v_date = st.date_input("Tarik", date.today())
-        v_no = st.selectbox("Gadi Number", VEHICLES)
-        v_loc = st.text_input("Kothe (Location)")
-        v_type = st.selectbox("Kharchacha Prakar", ["Diesel", "Repairing", "Driver Kharch", "Other"])
-        v_amt = st.number_input("Rakkam (₹)", min_value=0)
-        v_det = st.text_area("Detail (Kashasathi?)")
-
-        if st.form_submit_button("Kharch Jatan Kara"):
-            new_v = {"Tarik": str(v_date), "Gadi_No": v_no, "Kothe": v_loc, "Kharch_Type": v_type, "Amt": v_amt, "Detail": v_det}
-            df_exp = pd.concat([df_exp, pd.DataFrame([new_v])], ignore_index=True)
-            df_exp.to_excel(EXP_FILE, index=False)
-            st.success(f"{v_no} cha kharch seve jhala!")
-            st.rerun()
-
-    st.write("### Maagil Gadi Kharch")
-    st.dataframe(df_exp, use_container_width=True)
-
-# --- 3. Report & Delete ---
-elif menu == "📊 Report & Delete":
-    st.subheader("📊 Sampurna Hisob")
-
-    t1, t2 = st.tabs(["Kamgar Report", "Gadi Report"])
-
-    with t1:
-        s_worker = st.selectbox("Kamgar निवडा", WORKERS)
-        w_data = df[df["Naw"] == s_worker]
-        st.dataframe(w_data)
-        st.write(f"Ekun Absent: {len(w_data[w_data['Status']=='Absent'])}")
-        st.write(f"Ekun Advance: ₹{w_data['Advance'].sum()}")
-
-        if not w_data.empty:
-            ridx = st.selectbox("Delete karanyasathi Index nivda", w_data.index)
-            if st.button("Delete Worker Entry"):
-                df = df.drop(ridx)
-                df.to_excel(DB_FILE, index=False)
-                st.rerun()
-
-    with t2:
-        s_v = st.selectbox("Gadi निवडा", VEHICLES)
-        v_data = df_exp[df_exp["Gadi_No"] == s_v]
-        st.dataframe(v_data)
-        st.metric(f"{s_v} Ekun Kharch", f"₹{v_data['Amt'].sum()}")
-
-        if not v_data.empty:
-            vidx = st.selectbox("Delete karanyasathi Index nivda", v_data.index, key="vdel")
-            if st.button("Delete Gadi Entry"):
-                df_exp = df_exp.drop(vidx)
-                df_exp.to_excel(EXP_FILE, index=False)
-                st.rerun()
 
