@@ -4,106 +4,108 @@ from datetime import date
 import os
 import plotly.express as px
 
-# फाईल सेटअप
-DB_FILE = "sk_group_payroll.xlsx"
-EXP_FILE = "sk_group_expenses.xlsx"
+# File Setup
+DB_FILE = "sk_payroll.xlsx"
+EXP_FILE = "sk_expenses.xlsx"
+
+# Tumchi mahiti
 WORKERS = ["KHANDU HAJARE", "OM JADHAV", "SURAJ SHINDE", "ABHISHEK PATOLE"]
+VEHICLES = ["Gadi No 1", "Gadi No 2", "Gadi No 3", "Other"] # Tumchi gadi numbers yethal lihaha
 
 def load_data(file, columns):
     if os.path.exists(file):
-        try:
-            return pd.read_excel(file)
-        except:
-            return pd.DataFrame(columns=columns)
+        try: return pd.read_excel(file)
+        except: return pd.DataFrame(columns=columns)
     return pd.DataFrame(columns=columns)
 
-df = load_data(DB_FILE, ["तारीख", "नाव", "हजेरी", "पगार प्रकार", "पगार", "उचल (Advance)", "शिल्लक"])
-df_exp = load_data(EXP_FILE, ["तारीख", "खर्चाचा प्रकार", "तपशील", "रक्कम"])
+df = load_data(DB_FILE, ["Tarik", "Naw", "Status", "Pagar_Type", "Pagar", "Advance"])
+df_exp = load_data(EXP_FILE, ["Tarik", "Gadi_No", "Kothe", "Kharch_Type", "Amt", "Detail"])
 
-st.set_page_config(page_title="S K Group & Company", layout="wide")
-st.title("🏗️ S K Group & Company - Professional Manager")
+st.set_page_config(page_title="S K Group Manager", layout="wide")
+st.title("🏗️ S K Group & Company - Business Manager")
 
-menu = st.sidebar.selectbox("मेनू निवडा", ["👷 कामगार हजेरी", "💸 इतर खर्च (Expenses)", "📊 एकूण रिपोर्ट"])
+menu = st.sidebar.selectbox("Menu", ["🚩 Absent Nondva", "🚛 Gadi Kharch", "📊 Report & Delete"])
 
-# --- १. कामगार हजेरी आणि डिलीट ---
-if menu == "👷 कामगार हजेरी":
-    st.subheader("कामगार हजेरी आणि पगार नोंद")
-    with st.expander("➕ नवीन हजेरी नोंदवा"):
-        with st.form("worker_form"):
-            col1, col2 = st.columns(2)
-            with col1:
-                selected_worker = st.selectbox("कामगाराचे नाव", WORKERS)
-                pay_type = st.radio("पगार प्रकार", ["रोजंदारी (Daily)", "महिन्याचा (Monthly)"])
-                entry_date = st.date_input("तारीख", date.today())
-            with col2:
-                status = st.radio("हजेरी", ["पूर्ण दिवस", "अर्धा दिवस", "गैरहजर"])
-                wage_def = 600 if status == "पूर्ण दिवस" and pay_type == "रोजंदारी (Daily)" else (300 if status == "अर्धा दिवस" and pay_type == "रोजंदारी (Daily)" else 0)
-                daily_wage = st.number_input("आजचा पगार (₹)", value=wage_def)
-                advance = st.number_input("दिलेली उचल (Advance ₹)", min_value=0)
+# --- 1. Absent Nondva ---
+if menu == "🚩 Absent Nondva":
+    st.subheader("🚩 Kamgar Absent Nond (Baaki divas Present dharle jaatil)")
+    with st.form("absent_form"):
+        a_date = st.date_input("Tarik", date.today())
+        absent_worker = st.selectbox("Absent aslelya kamgarache naw", WORKERS)
+        p_type = st.radio("Pagar Type", ["Daily", "Monthly"])
+        st.info("Tip: Fakt Absent asel tarach yethal nond kara. Nond kelyas tya divasacha pagar 0 dharla jaail.")
 
-            if st.form_submit_button("नोंद जतन करा"):
-                new_row = {"तारीख": str(entry_date), "नाव": selected_worker, "हजेरी": status, "पगार प्रकार": pay_type, "पगार": daily_wage, "उचल (Advance)": advance, "शिल्लक": daily_wage - advance}
-                df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-                df.to_excel(DB_FILE, index=False)
-                st.success("नोंद झाली!")
-                st.rerun()
-
-    st.divider()
-    st.subheader("🔍 हिशोब पहा आणि चुकीची नोंद डिलीट करा")
-    search_name = st.selectbox("कामगार निवडा", WORKERS)
-    worker_df = df[df["नाव"] == search_name]
-
-    if not worker_df.empty:
-        st.dataframe(worker_df, use_container_width=True)
-        row_to_del = st.selectbox("डिलीट करण्यासाठी नोंद निवडा (Index No.)", worker_df.index, key="del_worker")
-        if st.button("❌ निवडलेली हजेरी डिलीट करा"):
-            df = df.drop(row_to_del)
+        if st.form_submit_button("Absent Nondva"):
+            new_row = {"Tarik": str(a_date), "Naw": absent_worker, "Status": "Absent", "Pagar_Type": p_type, "Pagar": 0, "Advance": 0}
+            df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
             df.to_excel(DB_FILE, index=False)
-            st.warning("हजेरीची नोंद यशस्वीरित्या काढून टाकली!")
+            st.error(f"{absent_worker} yanchi {a_date} chi Absent nondavli geli.")
             st.rerun()
 
-# --- २. इतर खर्च आणि डिलीट ---
-elif menu == "💸 इतर खर्च (Expenses)":
-    st.subheader("इतर खर्च (डिझेल, साहित्य, इ.)")
-    with st.expander("➕ नवीन खर्च नोंदवा"):
-        with st.form("exp_form"):
-            e_date = st.date_input("तारीख", date.today())
-            e_type = st.selectbox("खर्चाचा प्रकार", ["डिझेल/इंधन", "सिमेंट/खडी/वाळू", "मशिनरी भाडे", "दुरुस्ती (Repairing)", "जेवण/नाश्ता", "इतर"])
-            e_desc = st.text_input("तपशील")
-            e_amt = st.number_input("रक्कम (₹)", min_value=0)
-            if st.form_submit_button("खर्च जतन करा"):
-                new_exp = {"तारीख": str(e_date), "खर्चाचा प्रकार": e_type, "तपशील": e_desc, "रक्कम": e_amt}
-                df_exp = pd.concat([df_exp, pd.DataFrame([new_exp])], ignore_index=True)
-                df_exp.to_excel(EXP_FILE, index=False)
-                st.success("खर्चाची नोंद झाली!")
+    # Advance nondvanyasathi vegla section
+    st.divider()
+    st.subheader("💸 Advance (Uchal) Dene")
+    with st.form("adv_form"):
+        adv_worker = st.selectbox("Kamgar निवडा", WORKERS)
+        adv_amt = st.number_input("Advance Rakkam (₹)", min_value=0)
+        if st.form_submit_button("Advance Jatan Kara"):
+            new_adv = {"Tarik": str(date.today()), "Naw": adv_worker, "Status": "Present", "Pagar_Type": "N/A", "Pagar": 0, "Advance": adv_amt}
+            df = pd.concat([df, pd.DataFrame([new_adv])], ignore_index=True)
+            df.to_excel(DB_FILE, index=False)
+            st.success("Advance chi nond jhali!")
+            st.rerun()
+
+# --- 2. Gadi Kharch ---
+elif menu == "🚛 Gadi Kharch":
+    st.subheader("🚛 Gadi-wise Kharch (Diesel/Maintenance)")
+    with st.form("v_exp"):
+        v_date = st.date_input("Tarik", date.today())
+        v_no = st.selectbox("Gadi Number", VEHICLES)
+        v_loc = st.text_input("Kothe (Location)")
+        v_type = st.selectbox("Kharchacha Prakar", ["Diesel", "Repairing", "Driver Kharch", "Other"])
+        v_amt = st.number_input("Rakkam (₹)", min_value=0)
+        v_det = st.text_area("Detail (Kashasathi?)")
+
+        if st.form_submit_button("Kharch Jatan Kara"):
+            new_v = {"Tarik": str(v_date), "Gadi_No": v_no, "Kothe": v_loc, "Kharch_Type": v_type, "Amt": v_amt, "Detail": v_det}
+            df_exp = pd.concat([df_exp, pd.DataFrame([new_v])], ignore_index=True)
+            df_exp.to_excel(EXP_FILE, index=False)
+            st.success(f"{v_no} cha kharch seve jhala!")
+            st.rerun()
+
+    st.write("### Maagil Gadi Kharch")
+    st.dataframe(df_exp, use_container_width=True)
+
+# --- 3. Report & Delete ---
+elif menu == "📊 Report & Delete":
+    st.subheader("📊 Sampurna Hisob")
+
+    t1, t2 = st.tabs(["Kamgar Report", "Gadi Report"])
+
+    with t1:
+        s_worker = st.selectbox("Kamgar निवडा", WORKERS)
+        w_data = df[df["Naw"] == s_worker]
+        st.dataframe(w_data)
+        st.write(f"Ekun Absent: {len(w_data[w_data['Status']=='Absent'])}")
+        st.write(f"Ekun Advance: ₹{w_data['Advance'].sum()}")
+
+        if not w_data.empty:
+            ridx = st.selectbox("Delete karanyasathi Index nivda", w_data.index)
+            if st.button("Delete Worker Entry"):
+                df = df.drop(ridx)
+                df.to_excel(DB_FILE, index=False)
                 st.rerun()
 
-    st.divider()
-    st.subheader("🔍 खर्चाचा इतिहास आणि डिलीट")
-    if not df_exp.empty:
-        st.dataframe(df_exp, use_container_width=True)
-        exp_to_del = st.selectbox("डिलीट करण्यासाठी खर्च निवडा (Index No.)", df_exp.index, key="del_exp")
-        if st.button("❌ निवडलेला खर्च डिलीट करा"):
-            df_exp = df_exp.drop(exp_to_del)
-            df_exp.to_excel(EXP_FILE, index=False)
-            st.warning("खर्चाची नोंद काढून टाकली!")
-            st.rerun()
-    else:
-        st.info("कोणताही खर्च नोंदवलेला नाही.")
+    with t2:
+        s_v = st.selectbox("Gadi निवडा", VEHICLES)
+        v_data = df_exp[df_exp["Gadi_No"] == s_v]
+        st.dataframe(v_data)
+        st.metric(f"{s_v} Ekun Kharch", f"₹{v_data['Amt'].sum()}")
 
-# --- ३. एकूण रिपोर्ट ---
-elif menu == "📊 एकूण रिपोर्ट":
-    st.subheader("व्यवसायाचा लेखाजोखा")
-    total_worker_pay = df["पगार"].sum()
-    total_worker_adv = df["उचल (Advance)"].sum()
-    total_other_exp = df_exp["रक्कम"].sum()
-
-    c1, c2, c3 = st.columns(3)
-    c1.metric("कामगार एकूण पगार", f"₹{total_worker_pay}")
-    c2.metric("दिलेली एकूण उचल", f"₹{total_worker_adv}")
-    c3.metric("इतर खर्च (Expenses)", f"₹{total_other_exp}")
-
-    if not df_exp.empty:
-        fig_exp = px.pie(df_exp, values='रक्कम', names='खर्चाचा प्रकार', title='खर्चाचे वर्गीकरण')
-        st.plotly_chart(fig_exp, use_container_width=True)
+        if not v_data.empty:
+            vidx = st.selectbox("Delete karanyasathi Index nivda", v_data.index, key="vdel")
+            if st.button("Delete Gadi Entry"):
+                df_exp = df_exp.drop(vidx)
+                df_exp.to_excel(EXP_FILE, index=False)
+                st.rerun()
 
